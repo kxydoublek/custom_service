@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>登录 · 智能客服系统</title>
+  <link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="card login-card" id="form">
+      <h1 class="page-title">智能客服系统</h1>
+      <div class="error-bar hidden" id="err">账号无效或需要登录</div>
+      <label for="user">用户名</label>
+      <input id="user" type="text" autocomplete="username" />
+      <label for="pass">密码</label>
+      <input id="pass" type="password" autocomplete="current-password" />
+      <div style="margin-top:16px">
+        <button class="btn btn-primary" id="submit" type="submit" disabled>登录</button>
+      </div>
+      <p class="hint">演示账号 demo / demo，仅供设计演示。</p>
+    </form>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script>
+    const user = document.getElementById("user");
+    const pass = document.getElementById("pass");
+    const submit = document.getElementById("submit");
+    const err = document.getElementById("err");
+    function sync() {
+      submit.disabled = !(user.value.trim() && pass.value);
+    }
+    user.addEventListener("input", sync);
+    pass.addEventListener("input", sync);
+    document.getElementById("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      if (user.value.trim() === CS.DEMO_USER && pass.value === CS.DEMO_PASS) {
+        const s = CS.load();
+        s.loggedIn = true;
+        CS.save(s);
+        location.href = "../02-employee/index.html";
+      } else {
+        err.classList.remove("hidden");
+        pass.classList.add("field-error");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>客服工作台 · 智能客服系统</title>
+  <link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">智能客服系统</div>
+      <nav class="nav">
+        <a href="../02-employee/index.html">员工端</a>
+        <a class="active" href="../04-agent/index.html">客服工作台</a>
+        <a href="../03-knowledge/index.html">知识库</a>
+      </nav>
+    </header>
+    <div class="workspace">
+      <aside class="side side-wide">
+        <h2>工单</h2>
+        <div class="tabs">
+          <button class="tab active" data-f="waiting" type="button">待接入</button>
+          <button class="tab" data-f="in_progress" type="button">处理中</button>
+          <button class="tab" data-f="closed" type="button">关闭</button>
+        </div>
+        <div class="list" id="tickets"></div>
+      </aside>
+      <section class="main">
+        <div class="main-head" id="title">选择一张工单</div>
+        <div class="messages" id="messages"></div>
+        <div class="composer" id="actions">
+          <button class="btn btn-primary hidden" id="accept" type="button">接入</button>
+          <textarea id="input" rows="2" placeholder="回复员工" class="hidden"></textarea>
+          <button class="btn btn-primary hidden" id="reply" type="button">发送</button>
+          <button class="btn btn-secondary hidden" id="close" type="button">关闭</button>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script>
+    const state = CS.requireAuth();
+    if (!state) throw new Error("auth");
+    const ticketsEl = document.getElementById("tickets");
+    const messagesEl = document.getElementById("messages");
+    const titleEl = document.getElementById("title");
+    const accept = document.getElementById("accept");
+    const input = document.getElementById("input");
+    const reply = document.getElementById("reply");
+    const closeBtn = document.getElementById("close");
+
+    function filtered() {
+      return state.tickets.filter((t) => t.status === state.agentFilter);
+    }
+    function currentTicket() {
+      return state.tickets.find((t) => t.id === state.activeTicket) || null;
+    }
+    function sessionOf(ticket) {
+      return ticket ? state.sessions.find((s) => s.id === ticket.sessionId) : null;
+    }
+
+    function render() {
+      document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.f === state.agentFilter));
+      const rows = filtered();
+      ticketsEl.innerHTML = rows.map((t) => `
+        <div class="list-row ${t.id === state.activeTicket ? "active" : ""}" data-id="${t.id}">
+          <div class="title truncate">${CS.escapeHtml(t.preview)}</div>
+          <div class="meta"><span class="status-dot ${t.status === "closed" ? "dot-success" : "dot-warning"}"></span>${CS.statusLabel(t.status)}</div>
+        </div>`).join("") || `<div class="empty">这个状态下没有工单。</div>`;
+      const ticket = currentTicket();
+      const sess = sessionOf(ticket);
+      accept.classList.add("hidden");
+      input.classList.add("hidden");
+      reply.classList.add("hidden");
+      closeBtn.classList.add("hidden");
+      if (!ticket || !sess) {
+        titleEl.textContent = "选择一张工单";
+        messagesEl.innerHTML = "";
+        return;
+      }
+      titleEl.textContent = sess.title + " · " + CS.statusLabel(ticket.status);
+      CS.renderMessages(messagesEl, sess.messages, null);
+      if (ticket.status === "waiting") accept.classList.remove("hidden");
+      if (ticket.status === "in_progress") {
+        input.classList.remove("hidden");
+        reply.classList.remove("hidden");
+        closeBtn.classList.remove("hidden");
+      }
+    }
+
+    document.querySelector(".tabs").addEventListener("click", (e) => {
+      const tab = e.target.closest(".tab");
+      if (!tab) return;
+      state.agentFilter = tab.dataset.f;
+      CS.save(state);
+      render();
+    });
+    ticketsEl.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-id]");
+      if (!row) return;
+      state.activeTicket = row.dataset.id;
+      CS.save(state);
+      render();
+    });
+    accept.addEventListener("click", () => {
+      const ticket = currentTicket();
+      const sess = sessionOf(ticket);
+      if (!ticket || !sess) return;
+      ticket.status = "in_progress";
+      sess.handoff = "in_progress";
+      state.agentFilter = "in_progress";
+      CS.save(state);
+      render();
+    });
+    reply.addEventListener("click", () => {
+      const text = input.value.trim();
+      const ticket = currentTicket();
+      const sess = sessionOf(ticket);
+      if (!text || !sess || ticket.status !== "in_progress") return;
+      sess.messages.push({ role: "agent", text });
+      input.value = "";
+      CS.save(state);
+      render();
+    });
+    closeBtn.addEventListener("click", () => {
+      const ticket = currentTicket();
+      const sess = sessionOf(ticket);
+      if (!ticket || !sess) return;
+      ticket.status = "closed";
+      sess.handoff = "closed";
+      state.agentFilter = "closed";
+      CS.save(state);
+      render();
+    });
+
+    setInterval(() => {
+      const fresh = CS.load();
+      if (JSON.stringify(fresh.tickets) !== JSON.stringify(state.tickets) ||
+          JSON.stringify(fresh.sessions) !== JSON.stringify(state.sessions)) {
+        Object.assign(state, fresh);
+        render();
+      }
+    }, 800);
+
+    render();
+  </script>
+</body>
+</html>

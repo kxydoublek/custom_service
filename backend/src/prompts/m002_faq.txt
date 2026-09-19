@@ -1,0 +1,1 @@
+只根据给定正文，不编造。输出 JSON {"faqs":[{"question":"...","answer":"..."}]}。最多 {faq_max_per_document} 条；无合适则空数组（仍可靠分块召回）。

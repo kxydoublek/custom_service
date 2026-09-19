@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>知识库 · 智能客服系统</title>
+  <link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">智能客服系统</div>
+      <nav class="nav">
+        <a href="../02-employee/index.html">员工端</a>
+        <a href="../04-agent/index.html">客服工作台</a>
+        <a class="active" href="../03-knowledge/index.html">知识库</a>
+      </nav>
+    </header>
+    <div class="workspace" style="flex-direction:column">
+      <div class="upload">
+        <div class="error-bar hidden" id="err">不支持该格式</div>
+        <button class="btn btn-primary" type="button" id="pick">上传文档</button>
+        <input id="file" type="file" class="hidden" />
+        <span class="hint" style="margin-left:12px">PDF、Word、Markdown、txt。提交后可离开，回来看进度。</span>
+      </div>
+      <div class="split">
+        <aside class="side">
+          <h2>已入库文档</h2>
+          <div class="list" id="docs"></div>
+        </aside>
+        <div class="detail" id="detail"></div>
+      </div>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script>
+    const state = CS.requireAuth();
+    if (!state) throw new Error("auth");
+    const docsEl = document.getElementById("docs");
+    const detailEl = document.getElementById("detail");
+    const err = document.getElementById("err");
+    const file = document.getElementById("file");
+
+    function dot(status) {
+      if (status === "ready") return "dot-success";
+      if (status === "failed") return "dot-error";
+      return "dot-warning";
+    }
+
+    function render() {
+      docsEl.innerHTML = state.documents.map((d) => `
+        <div class="list-row ${d.id === state.activeDoc ? "active" : ""}" data-id="${d.id}">
+          <div class="title truncate">${CS.escapeHtml(d.name)}</div>
+          <div class="meta"><span class="status-dot ${dot(d.status)}"></span>${CS.statusLabel(d.status)}${d.status === "processing" ? " " + d.progress + "%" : ""}</div>
+        </div>`).join("") || `<div class="empty">还没有文档，请上传。</div>`;
+      const d = state.documents.find((x) => x.id === state.activeDoc);
+      if (!d) { detailEl.innerHTML = `<p class="empty">选择一份文档查看详情。</p>`; return; }
+      if (d.status === "failed") {
+        detailEl.innerHTML = `<h2 class="page-title">${CS.escapeHtml(d.name)}</h2><div class="error-bar">${CS.escapeHtml(d.error)}</div>`;
+        return;
+      }
+      if (d.status !== "ready") {
+        detailEl.innerHTML = `<h2 class="page-title">${CS.escapeHtml(d.name)}</h2><p class="hint">正在处理，你可以切换到其它页面，稍后再回来看。</p><p><span class="status-dot ${dot(d.status)}"></span>${CS.statusLabel(d.status)} ${d.progress}%</p>`;
+        return;
+      }
+      detailEl.innerHTML = `
+        <h2 class="page-title">${CS.escapeHtml(d.name)}</h2>
+        <p><span class="tag">${CS.escapeHtml(d.objectTag)}</span><span class="tag">${CS.escapeHtml(d.requestTag)}</span></p>
+        <h3 style="font-size:16px">分块</h3>
+        <p>${CS.escapeHtml(d.chunks.join(" "))}</p>
+        <h3 style="font-size:16px">抽出的 FAQ</h3>
+        ${(d.faqs || []).map((f) => `<p><strong>${CS.escapeHtml(f.q)}</strong><br>${CS.escapeHtml(f.a)}</p>`).join("")}
+        <p class="hint">入库成功立即生效，无需再确认。</p>`;
+    }
+
+    docsEl.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-id]");
+      if (!row) return;
+      state.activeDoc = row.dataset.id;
+      CS.save(state);
+      render();
+    });
+
+    document.getElementById("pick").addEventListener("click", () => file.click());
+    file.addEventListener("change", () => {
+      const f = file.files[0];
+      if (!f) return;
+      const ok = /\.(pdf|docx|md|txt)$/i.test(f.name);
+      if (!ok) {
+        err.textContent = "不支持该格式";
+        err.classList.remove("hidden");
+        file.value = "";
+        return;
+      }
+      err.classList.add("hidden");
+      const fail = /空|empty/i.test(f.name);
+      const id = "d" + Date.now();
+      const doc = {
+        id, name: f.name, status: "queued", progress: 10,
+        objectTag: "网络与远程接入", requestTag: "故障与异常排查",
+        chunks: ["演示分块：文档已切分并写入检索库。"],
+        faqs: [{ q: f.name.replace(/\.[^.]+$/, "") + " 怎么处理", a: "按文档中的步骤操作。" }],
+        error: fail ? "无法提取正文" : ""
+      };
+      state.documents.unshift(doc);
+      state.activeDoc = id;
+      CS.save(state);
+      render();
+      setTimeout(() => {
+        const s = CS.load();
+        const target = s.documents.find((x) => x.id === id);
+        if (!target) return;
+        target.status = "processing";
+        target.progress = 45;
+        CS.save(s);
+        Object.assign(state, s);
+        render();
+      }, 600);
+      setTimeout(() => {
+        const s = CS.load();
+        const target = s.documents.find((x) => x.id === id);
+        if (!target) return;
+        if (fail) { target.status = "failed"; target.progress = 0; }
+        else { target.status = "ready"; target.progress = 100; }
+        CS.save(s);
+        Object.assign(state, s);
+        render();
+      }, 1800);
+      file.value = "";
+    });
+
+    render();
+  </script>
+</body>
+</html>

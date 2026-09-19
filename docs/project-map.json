@@ -1,0 +1,2412 @@
+{
+  "meta": {
+    "project_id": "Customer_Service",
+    "project_name": "智能客服系统",
+    "title": "页面功能与实现导航",
+    "checked_at": "2026-09-19",
+    "notes": "按当前前端页面追到 Axios/fetch、后端路由与 ingest/qa/ticket/llm_http。不是旧的六区管理看板。本仓库没有 Plugin/Agent 工具循环：百炼是 httpx Chat/Embedding。未读取真实 .env、日志、数据库或用户上传。Vite 开发端口 5199，代理 /api 与 /ws 到后端 8099。"
+  },
+  "pages": [
+    {
+      "id": "page-login",
+      "name": "登录",
+      "route": "/login",
+      "purpose": "内部账号登录。成功后进入员工端；失败留在本页并显示错误条。",
+      "features": [
+        "feat-login",
+        "feat-restore"
+      ],
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "frontend/src/pages/LoginPage.tsx",
+          "symbol": "LoginPage",
+          "fingerprint": "fb4b9af2cb29c797c3f08f2ed3f366df2aa3df2be59fa9bb3ed4e0c2f9658f82"
+        },
+        {
+          "path": "frontend/src/router/index.tsx",
+          "symbol": "AppRoutes /login",
+          "fingerprint": "ddf07677b9d98ddf0df6b8bae640f97f721892dd4c3b378abde8fd83920428e1"
+        }
+      ]
+    },
+    {
+      "id": "page-employee",
+      "name": "员工端",
+      "route": "/employee",
+      "purpose": "提问与多轮对话、历史会话、转人工。自动回复用来源标签+SSE 逐字；员工只看到 handoff_state，不展示工单 pending/processing/closed。",
+      "features": [
+        "feat-emp-list",
+        "feat-emp-ask",
+        "feat-emp-transfer"
+      ],
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "frontend/src/pages/EmployeePage.tsx",
+          "symbol": "EmployeePage",
+          "fingerprint": "e41cea3027b2bf3b4b8b16d399b132a6b0b2f1a7b0239716db6025966d51de33"
+        },
+        {
+          "path": "frontend/src/router/index.tsx",
+          "symbol": "path /employee",
+          "fingerprint": "ddf07677b9d98ddf0df6b8bae640f97f721892dd4c3b378abde8fd83920428e1"
+        }
+      ]
+    },
+    {
+      "id": "page-knowledge",
+      "name": "知识库",
+      "route": "/knowledge",
+      "purpose": "上传 PDF/docx/Markdown/txt，查看入库进度、失败原因，以及成功后的分块、标签和 FAQ。",
+      "features": [
+        "feat-kb-upload",
+        "feat-kb-progress"
+      ],
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "frontend/src/pages/KnowledgePage.tsx",
+          "symbol": "KnowledgePage",
+          "fingerprint": "0477e73763b2f987c41723eddf6a5c46ed6631f10ab9bb34157a7b041f430bd9"
+        },
+        {
+          "path": "frontend/src/router/index.tsx",
+          "symbol": "path /knowledge",
+          "fingerprint": "ddf07677b9d98ddf0df6b8bae640f97f721892dd4c3b378abde8fd83920428e1"
+        }
+      ]
+    },
+    {
+      "id": "page-agent",
+      "name": "客服工作台",
+      "route": "/agent",
+      "purpose": "按待接入/处理中/关闭查看工单，接入、回复、关闭。员工端不出现这些工单状态字。",
+      "features": [
+        "feat-ag-list",
+        "feat-ag-handle"
+      ],
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "frontend/src/pages/AgentPage.tsx",
+          "symbol": "AgentPage",
+          "fingerprint": "5104b4ead500c4921bdbdb5c74c660f57c12c0c68cd2a78e91dd83e733c62304"
+        },
+        {
+          "path": "frontend/src/router/index.tsx",
+          "symbol": "path /agent",
+          "fingerprint": "ddf07677b9d98ddf0df6b8bae640f97f721892dd4c3b378abde8fd83920428e1"
+        }
+      ]
+    }
+  ],
+  "features": [
+    {
+      "id": "feat-login",
+      "page_id": "page-login",
+      "name": "提交账号密码登录",
+      "trigger": "登录页填写用户名和密码后点「登录」。用户名需非空 trim，密码非空，提交中按钮禁用。",
+      "input": "username string、password string（JSON body）。",
+      "output": "成功：写入 access_token，跳转 /employee。失败：错误条「账号或密码不正确」，密码框标红，不进三端。",
+      "api_ids": [
+        "API-001",
+        "API-002"
+      ],
+      "algorithm_ids": [
+        "ALG-AUTH"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "用户",
+          "action": "提交登录表单",
+          "data": "username、password",
+          "branch": "缺一项则按钮禁用，不发请求"
+        },
+        {
+          "actor": "前端 LoginPage / AuthProvider",
+          "action": "调用 login() → POST /api/auth/login",
+          "data": "Authorization 不带 Token",
+          "branch": null
+        },
+        {
+          "actor": "后端 AuthService",
+          "action": "按用户名查库并用 bcrypt 校验密码，签发 JWT",
+          "data": "access_token、token_type=bearer、user{id,username}",
+          "branch": "用户不存在或密码错 → 401 UNAUTHORIZED，文案不区分哪一项"
+        },
+        {
+          "actor": "前端",
+          "action": "setAccessToken 后 replace 到 /employee",
+          "data": "Bearer 供后续请求",
+          "branch": "Axios 非登录接口 401 会清 Token 并跳 /login"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/LoginPage.tsx",
+          "symbol": "handleSubmit",
+          "fingerprint": "fb4b9af2cb29c797c3f08f2ed3f366df2aa3df2be59fa9bb3ed4e0c2f9658f82"
+        },
+        {
+          "path": "frontend/src/stores/AuthProvider.tsx",
+          "symbol": "login",
+          "fingerprint": "7fe7d06d289575e09b70f42210493ae80e0c426a72498080911ead16f58d5f0a"
+        },
+        {
+          "path": "frontend/src/services/auth.ts",
+          "symbol": "login",
+          "fingerprint": "662cd338b9e7c0ed2f775df86ef6ff05a81c4ce84e19c528984282d59752777d"
+        },
+        {
+          "path": "backend/src/api/routes/auth.py",
+          "symbol": "login",
+          "fingerprint": "54ac3ee35c3edec802b2554c386a48445687633d054e1d60ed184587414e3208"
+        },
+        {
+          "path": "backend/src/services/auth.py",
+          "symbol": "authenticate / build_login_data",
+          "fingerprint": "bcd61abced6387132d2fd66887839aea8d0770dc5269feff8ff19598cbff1c43"
+        }
+      ]
+    },
+    {
+      "id": "feat-restore",
+      "page_id": "page-login",
+      "name": "恢复登录与进入三端",
+      "trigger": "打开站点或刷新。未登录访问 /employee、/agent、/knowledge 会回到 /login。",
+      "input": "localStorage 中的 access_token（若有）。",
+      "output": "有效令牌：authenticated，可进三端外壳（顶栏员工端/客服工作台/知识库互斥高亮）。无效：anonymous，停在或回到登录。",
+      "api_ids": [
+        "API-002",
+        "API-003"
+      ],
+      "algorithm_ids": [
+        "ALG-AUTH"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "前端 AuthProvider",
+          "action": "启动时若有 Token 则 GET /api/auth/me",
+          "data": "Authorization: Bearer",
+          "branch": "无 Token → 直接 anonymous"
+        },
+        {
+          "actor": "后端 get_current_user",
+          "action": "解码 JWT 并查用户",
+          "data": "UserPublic id/username",
+          "branch": "缺凭证/坏 Token/用户不存在 → 401 请先登录"
+        },
+        {
+          "actor": "路由器",
+          "action": "RequireAuth 保护三端；已登录访问 /login 改去 /employee",
+          "data": "顶栏三端 Link",
+          "branch": null
+        },
+        {
+          "actor": "前端",
+          "action": "AuthProvider.logout 会 POST /api/auth/logout 并清 Token、关 WS",
+          "data": "logged_out=true；服务端无黑名单",
+          "branch": "顶栏未放置退出按钮，页面上没有该触发，仅服务与 Context 已实现"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/stores/AuthProvider.tsx",
+          "symbol": "restore / logout",
+          "fingerprint": "7fe7d06d289575e09b70f42210493ae80e0c426a72498080911ead16f58d5f0a"
+        },
+        {
+          "path": "frontend/src/router/index.tsx",
+          "symbol": "RequireAuth / AppHeader 路由",
+          "fingerprint": "ddf07677b9d98ddf0df6b8bae640f97f721892dd4c3b378abde8fd83920428e1"
+        },
+        {
+          "path": "frontend/src/components/AppHeader.tsx",
+          "symbol": "NAV_ITEMS",
+          "fingerprint": "e7d520230e0505cfa310f295243d7e9b8ed76fa70d99fd66a56e48dcb78a1962"
+        },
+        {
+          "path": "backend/src/api/routes/auth.py",
+          "symbol": "me / logout",
+          "fingerprint": "54ac3ee35c3edec802b2554c386a48445687633d054e1d60ed184587414e3208"
+        },
+        {
+          "path": "backend/src/api/deps.py",
+          "symbol": "get_current_user",
+          "fingerprint": "466e3f2daa8e407db106c9649eb51f7399e036d2d223797d72cccd887d9c2e55"
+        }
+      ]
+    },
+    {
+      "id": "feat-emp-list",
+      "page_id": "page-employee",
+      "name": "历史会话与新建",
+      "trigger": "进入员工端自动拉列表；点侧栏会话或「新建」。",
+      "input": "分页 page 默认 1、page_size 默认 20。",
+      "output": "侧栏 ConversationSummary（id、title、updated_at、preview）。点选后展示会话快照。空会话提示「还没有会话，在下方提问」。",
+      "api_ids": [
+        "API-007",
+        "API-008",
+        "API-009"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "前端 EmployeePage",
+          "action": "挂载时 listConversations()",
+          "data": "GET /api/conversations",
+          "branch": "有第一条则自动 openConversation"
+        },
+        {
+          "actor": "前端",
+          "action": "getConversation(id)",
+          "data": "含 messages 与 handoff_state（none/waiting/in_progress，不是工单枚举）",
+          "branch": "handoff 为 none 且最后一条是 user → 续接 assistant-stream"
+        },
+        {
+          "actor": "前端",
+          "action": "createConversation()",
+          "data": "POST /api/conversations {}",
+          "branch": "标题初始为「新会话」"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/EmployeePage.tsx",
+          "symbol": "boot / handleCreate / openConversation",
+          "fingerprint": "e41cea3027b2bf3b4b8b16d399b132a6b0b2f1a7b0239716db6025966d51de33"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "createConversation / listConversations / getConversation",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        },
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "create/list/get",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        }
+      ]
+    },
+    {
+      "id": "feat-emp-ask",
+      "page_id": "page-employee",
+      "name": "提问并看自动回复",
+      "trigger": "输入框发送。发送中到 SSE done/error 前禁用。",
+      "input": "content 去掉首尾空白；上限 message_max_chars 源码默认 2000。",
+      "output": "先出现用户消息；若 stream=true，SSE meta 带来源（FAQ/闲聊/知识问答）再 delta 逐字，done 后落成一条完整助手消息。人工进行中 stream=false，不自动回复。",
+      "api_ids": [
+        "API-010",
+        "API-017"
+      ],
+      "algorithm_ids": [
+        "ALG-FAQ",
+        "ALG-QA",
+        "ALG-RETRIEVE"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "员工",
+          "action": "发送问题",
+          "data": "content",
+          "branch": "无当前会话则先 POST /conversations"
+        },
+        {
+          "actor": "前端",
+          "action": "POST /conversations/{id}/messages {content}",
+          "data": "返回 user_message、handoff_state、stream、assistant_message 恒为 null",
+          "branch": "stream=false 结束忙状态；true 则 fetch SSE"
+        },
+        {
+          "actor": "后端 QaService",
+          "action": "校验空/超长、generation_lock、是否已有未关闭工单",
+          "data": "有未关闭 ticket → 只落 user，stream=false，并在非流路径 commit 后推 message.created",
+          "branch": "已有 lock → 409 请等待当前回复结束"
+        },
+        {
+          "actor": "前端",
+          "action": "GET /conversations/{id}/assistant-stream?after_user_message_id=",
+          "data": "Accept: text/event-stream；事件 meta→delta→done 或 error",
+          "branch": "prefers-reduced-motion 时不拼接 delta 文本，仍等 done"
+        },
+        {
+          "actor": "后端 stream_assistant_reply",
+          "action": "FAQ → 分类 → 闲聊流 / 超范围切段 / 标签召回后知识问答流",
+          "data": "来源 faq | small_talk | knowledge_qa",
+          "branch": "见 ALG-QA"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/EmployeePage.tsx",
+          "symbol": "handleSend / startStream",
+          "fingerprint": "e41cea3027b2bf3b4b8b16d399b132a6b0b2f1a7b0239716db6025966d51de33"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "sendMessage / openAssistantStream",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        },
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "send_message / assistant_stream",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "send_user_message / stream_assistant_reply / _plan_reply",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        }
+      ]
+    },
+    {
+      "id": "feat-emp-transfer",
+      "page_id": "page-employee",
+      "name": "转人工与等待提示",
+      "trigger": "对话下方「转人工」。busy 或已 waiting/in_progress 时按钮锁定。",
+      "input": "当前 conversation_id。",
+      "output": "系统等待文案（源码默认「正在等待人工客服」）；WaitBanner 在 waiting 显示该文案，in_progress 显示「人工客服处理中」。员工界面不出现工单状态字。客服消息经 WS 追加且不标 FAQ/闲聊/知识问答。",
+      "api_ids": [
+        "API-011",
+        "API-018"
+      ],
+      "algorithm_ids": [
+        "ALG-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "员工",
+          "action": "点转人工",
+          "data": "POST /conversations/{id}/transfer {}",
+          "branch": "已有未关闭单 → 409 当前已在等待或由人工处理"
+        },
+        {
+          "actor": "后端 TicketService.transfer",
+          "action": "建 pending 工单、写 system 等待消息、广播 WS",
+          "data": "ticket.created + handoff.changed=waiting + message.created",
+          "branch": null
+        },
+        {
+          "actor": "前端",
+          "action": "connectRealtime",
+          "data": "handoff.changed 为 waiting/in_progress 时中止 SSE；message.created 追加气泡",
+          "branch": "员工侧只用 handoff_state"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/EmployeePage.tsx",
+          "symbol": "handleTransfer / connectRealtime",
+          "fingerprint": "e41cea3027b2bf3b4b8b16d399b132a6b0b2f1a7b0239716db6025966d51de33"
+        },
+        {
+          "path": "frontend/src/components/chat/WaitBanner.tsx",
+          "symbol": "WaitBanner",
+          "fingerprint": "38e4c49fa5dcb4e0dd700bb3071b5c9a0519f7661c1e9658892336d487114ee3"
+        },
+        {
+          "path": "backend/src/services/ticket.py",
+          "symbol": "transfer",
+          "fingerprint": "6b5465566a959e0e3683db6074465ebf42d74b5e177898052df4006256966d4b"
+        },
+        {
+          "path": "backend/src/api/ws.py",
+          "symbol": "publish_events",
+          "fingerprint": "a1c974f0835300eb29930f6709e4f002028101e18432a702051719d4d07fe306"
+        }
+      ]
+    },
+    {
+      "id": "feat-kb-upload",
+      "page_id": "page-knowledge",
+      "name": "上传知识文档",
+      "trigger": "知识库页选择文件。前端先按扩展名拦截。",
+      "input": "multipart 字段名 file。允许 .pdf / .docx / .md / .markdown / .txt。大小上限源码默认 20971520 字节（20MB）。",
+      "output": "立即返回 queued 摘要并进入列表；后台入库。不支持格式当场「不支持该格式」。提交后可离开。",
+      "api_ids": [
+        "API-004"
+      ],
+      "algorithm_ids": [
+        "ALG-INGEST"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "知识管理员",
+          "action": "选文件",
+          "data": "filename",
+          "branch": "扩展名不在允许列表 → 不发请求，提示不支持该格式"
+        },
+        {
+          "actor": "前端",
+          "action": "POST /api/documents FormData file",
+          "data": "DocumentSummary queued",
+          "branch": "后端扩展名/大小失败 → 400，不建行"
+        },
+        {
+          "actor": "后端 IngestService.submit_upload",
+          "action": "落盘 UPLOAD_DIR/{uuid}_{filename}，插入 queued，schedule_ingest",
+          "data": "立即 200",
+          "branch": "后续失败回滚见 ALG-INGEST"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/KnowledgePage.tsx",
+          "symbol": "handleFile",
+          "fingerprint": "0477e73763b2f987c41723eddf6a5c46ed6631f10ab9bb34157a7b041f430bd9"
+        },
+        {
+          "path": "frontend/src/services/documents.ts",
+          "symbol": "uploadDocument / isSupportedDocumentFilename",
+          "fingerprint": "58da914d1ad60b10c718af5fbff3dbdc949305ba3a415c563126a9a3f488d132"
+        },
+        {
+          "path": "backend/src/api/routes/documents.py",
+          "symbol": "upload_document",
+          "fingerprint": "44b6efe66b4f8a4a13ff6e025434ac4e5c81298be10e09b0667a689791b17958"
+        },
+        {
+          "path": "backend/src/services/ingest.py",
+          "symbol": "submit_upload / schedule_ingest",
+          "fingerprint": "ab4f8365bdd27f4def2871c9c68d9f21355593f4d94b7acf91cc400ec9c2d9cc"
+        }
+      ]
+    },
+    {
+      "id": "feat-kb-progress",
+      "page_id": "page-knowledge",
+      "name": "进度、失败原因与成功分块/FAQ",
+      "trigger": "进页拉列表；点选文档拉详情；在页时收 WS。",
+      "input": "列表 query：page、page_size、可选 status。详情路径 document_id。",
+      "output": "进行中显示阶段百分比；失败显示 error_message；ready 后展示对象/诉求标签、分块正文、抽出的 FAQ。chunks/faqs 仅 ready 时返回。",
+      "api_ids": [
+        "API-005",
+        "API-006",
+        "API-018"
+      ],
+      "algorithm_ids": [
+        "ALG-INGEST"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "前端",
+          "action": "GET /documents 与 GET /documents/{id}",
+          "data": "status/stage/progress_percent/error_message；ready 含 chunks、faqs",
+          "branch": "进页快照，不靠轮询"
+        },
+        {
+          "actor": "后端入库任务",
+          "action": "各阶段推 document.progress，成功 document.ready，失败 document.failed",
+          "data": "progress 百分比 0/10/25/45/70/90/100",
+          "branch": "失败删 chunks/faqs 与未完成原文"
+        },
+        {
+          "actor": "前端",
+          "action": "WS 更新列表/详情；ready 再拉一次详情",
+          "data": "document.ready → getDocument",
+          "branch": null
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/KnowledgePage.tsx",
+          "symbol": "connectRealtime / DocumentDetailPanel",
+          "fingerprint": "0477e73763b2f987c41723eddf6a5c46ed6631f10ab9bb34157a7b041f430bd9"
+        },
+        {
+          "path": "frontend/src/components/knowledge/DocumentDetailPanel.tsx",
+          "symbol": "进度/失败/分块/FAQ",
+          "fingerprint": "6d99fd86c551c1f56e47d00d68fbed5b9b22147d328f8d3fafccd24d0f6b4bf5"
+        },
+        {
+          "path": "backend/src/api/routes/documents.py",
+          "symbol": "list_documents / get_document",
+          "fingerprint": "44b6efe66b4f8a4a13ff6e025434ac4e5c81298be10e09b0667a689791b17958"
+        },
+        {
+          "path": "backend/src/api/ws.py",
+          "symbol": "publish_document_*",
+          "fingerprint": "a1c974f0835300eb29930f6709e4f002028101e18432a702051719d4d07fe306"
+        }
+      ]
+    },
+    {
+      "id": "feat-ag-list",
+      "page_id": "page-agent",
+      "name": "按状态查看工单",
+      "trigger": "工作台页签：待接入 / 处理中 / 关闭。进页拉列表；WS 推新单。",
+      "input": "status=pending|processing|closed，page/page_size。",
+      "output": "TicketSummary：id、conversation_id、status、title、preview、created_at。点选拉详情含完整 messages。",
+      "api_ids": [
+        "API-012",
+        "API-013",
+        "API-018"
+      ],
+      "algorithm_ids": [
+        "ALG-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "客服",
+          "action": "切换页签",
+          "data": "GET /api/tickets?status=",
+          "branch": "非法 status → 400 状态不正确"
+        },
+        {
+          "actor": "后端",
+          "action": "列表/详情",
+          "data": "详情含 accepted_at、closed_at、messages",
+          "branch": "不存在 → 404 工单不存在"
+        },
+        {
+          "actor": "前端",
+          "action": "ticket.created 时若在 pending 页签插入并在无选中时打开",
+          "data": "WS",
+          "branch": "accepted/closed 从当前列表移除或刷新对应页签"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/AgentPage.tsx",
+          "symbol": "loadList / connectRealtime",
+          "fingerprint": "5104b4ead500c4921bdbdb5c74c660f57c12c0c68cd2a78e91dd83e733c62304"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "listTickets / getTicket",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        },
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "list_tickets / get_ticket",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        }
+      ]
+    },
+    {
+      "id": "feat-ag-handle",
+      "page_id": "page-agent",
+      "name": "接入、回复与关闭",
+      "trigger": "待接入点「接入」；处理中输入回复并发送或点「关闭」。已关闭无操作区。",
+      "input": "ticket_id；回复 content 去空白，上限同消息上限。",
+      "output": "接入后 status=processing；回复得到 role=agent 的消息（无来源标签）；关闭后 status=closed，员工 handoff 回到 none。",
+      "api_ids": [
+        "API-014",
+        "API-015",
+        "API-016",
+        "API-018"
+      ],
+      "algorithm_ids": [
+        "ALG-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "flow": [
+        {
+          "actor": "客服",
+          "action": "接入",
+          "data": "POST /tickets/{id}/accept",
+          "branch": "非 pending → 409 无法接入"
+        },
+        {
+          "actor": "后端",
+          "action": "mark_processing 并广播 ticket.accepted + handoff.changed=in_progress",
+          "data": "accepted_at",
+          "branch": null
+        },
+        {
+          "actor": "客服",
+          "action": "回复",
+          "data": "POST /tickets/{id}/messages {content}",
+          "branch": "非 processing → 409 不能回复；空/超长 → 400 请输入要发送的内容"
+        },
+        {
+          "actor": "后端",
+          "action": "落 role=agent 消息并 WS message.created 给员工当前会话",
+          "data": "source=null",
+          "branch": null
+        },
+        {
+          "actor": "客服",
+          "action": "关闭",
+          "data": "POST /tickets/{id}/close",
+          "branch": "已关闭 → 409 已关闭"
+        }
+      ],
+      "sources": [
+        {
+          "path": "frontend/src/pages/AgentPage.tsx",
+          "symbol": "handleAccept / handleReply / handleClose",
+          "fingerprint": "5104b4ead500c4921bdbdb5c74c660f57c12c0c68cd2a78e91dd83e733c62304"
+        },
+        {
+          "path": "frontend/src/components/tickets/TicketComposer.tsx",
+          "symbol": "pending/processing/closed 操作",
+          "fingerprint": "28da2a0c2762103bb3daf603200e6ebd3c29b6c1b1a8e361e00154a2a666d467"
+        },
+        {
+          "path": "backend/src/services/ticket.py",
+          "symbol": "accept / reply / close",
+          "fingerprint": "6b5465566a959e0e3683db6074465ebf42d74b5e177898052df4006256966d4b"
+        }
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "id": "API-001",
+      "name": "内部账号登录",
+      "method": "POST",
+      "url": "/api/auth/login",
+      "algorithm_id": "ALG-AUTH",
+      "module_ids": [
+        "MOD-AUTH"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "username",
+          "location": "JSON body",
+          "type": "string",
+          "note": "必填，min_length=1"
+        },
+        {
+          "name": "password",
+          "location": "JSON body",
+          "type": "string",
+          "note": "必填；不写日志"
+        }
+      ],
+      "response": [
+        {
+          "name": "信封",
+          "location": "JSON",
+          "type": "ApiEnvelope",
+          "note": "success/data/error/error_code/message/timestamp/request_id/metadata"
+        },
+        {
+          "name": "data.access_token",
+          "location": "data",
+          "type": "string",
+          "note": "JWT HS256"
+        },
+        {
+          "name": "data.token_type",
+          "location": "data",
+          "type": "string",
+          "note": "固定 bearer"
+        },
+        {
+          "name": "data.user.id",
+          "location": "data.user",
+          "type": "int",
+          "note": null
+        },
+        {
+          "name": "data.user.username",
+          "location": "data.user",
+          "type": "string",
+          "note": null
+        },
+        {
+          "name": "401",
+          "location": "HTTP",
+          "type": "UNAUTHORIZED",
+          "note": "error=账号或密码不正确"
+        },
+        {
+          "name": "400",
+          "location": "HTTP",
+          "type": "VALIDATION_ERROR",
+          "note": "登录缺字段文案：请输入用户名和密码"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/auth.py",
+          "symbol": "login",
+          "fingerprint": "54ac3ee35c3edec802b2554c386a48445687633d054e1d60ed184587414e3208"
+        },
+        {
+          "path": "frontend/src/services/auth.ts",
+          "symbol": "login",
+          "fingerprint": "662cd338b9e7c0ed2f775df86ef6ff05a81c4ce84e19c528984282d59752777d"
+        }
+      ]
+    },
+    {
+      "id": "API-002",
+      "name": "当前登录",
+      "method": "GET",
+      "url": "/api/auth/me",
+      "module_ids": [
+        "MOD-AUTH"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "Authorization",
+          "location": "header",
+          "type": "Bearer JWT",
+          "note": "HTTPBearer"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.id",
+          "location": "data",
+          "type": "int",
+          "note": null
+        },
+        {
+          "name": "data.username",
+          "location": "data",
+          "type": "string",
+          "note": null
+        },
+        {
+          "name": "401",
+          "location": "HTTP",
+          "type": "UNAUTHORIZED",
+          "note": "请先登录"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/auth.py",
+          "symbol": "me",
+          "fingerprint": "54ac3ee35c3edec802b2554c386a48445687633d054e1d60ed184587414e3208"
+        },
+        {
+          "path": "frontend/src/services/auth.ts",
+          "symbol": "fetchCurrentUser",
+          "fingerprint": "662cd338b9e7c0ed2f775df86ef6ff05a81c4ce84e19c528984282d59752777d"
+        }
+      ]
+    },
+    {
+      "id": "API-003",
+      "name": "退出",
+      "method": "POST",
+      "url": "/api/auth/logout",
+      "module_ids": [
+        "MOD-AUTH"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "Authorization",
+          "location": "header",
+          "type": "Bearer JWT",
+          "note": "路由本身不校验；前端仍会带 Token"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.logged_out",
+          "location": "data",
+          "type": "boolean",
+          "note": "恒为 true；无服务端黑名单，前端丢弃 Token 并关掉 WS"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/auth.py",
+          "symbol": "logout",
+          "fingerprint": "54ac3ee35c3edec802b2554c386a48445687633d054e1d60ed184587414e3208"
+        },
+        {
+          "path": "frontend/src/stores/AuthProvider.tsx",
+          "symbol": "logout",
+          "fingerprint": "7fe7d06d289575e09b70f42210493ae80e0c426a72498080911ead16f58d5f0a"
+        }
+      ]
+    },
+    {
+      "id": "API-004",
+      "name": "提交入库",
+      "method": "POST",
+      "url": "/api/documents",
+      "algorithm_id": "ALG-INGEST",
+      "module_ids": [
+        "MOD-INGEST",
+        "MOD-LLM-HTTP"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "file",
+          "location": "multipart form",
+          "type": "UploadFile",
+          "note": "字段名 file"
+        },
+        {
+          "name": "Authorization",
+          "location": "header",
+          "type": "Bearer JWT",
+          "note": "登录用户"
+        }
+      ],
+      "response": [
+        {
+          "name": "data",
+          "location": "JSON",
+          "type": "DocumentSummary",
+          "note": "id, filename, content_type, status=queued, stage, progress_percent, error_message, char_count, chunk_count, faq_count, object_types, request_types, created_at"
+        },
+        {
+          "name": "400 格式",
+          "location": "HTTP",
+          "type": "VALIDATION_ERROR",
+          "note": "不支持该格式，请上传 PDF、Word（.docx）、Markdown 或 txt"
+        },
+        {
+          "name": "400 大小",
+          "location": "HTTP",
+          "type": "VALIDATION_ERROR",
+          "note": "文件过大，最大 {upload_max_bytes//1MB}MB"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/documents.py",
+          "symbol": "upload_document",
+          "fingerprint": "44b6efe66b4f8a4a13ff6e025434ac4e5c81298be10e09b0667a689791b17958"
+        },
+        {
+          "path": "frontend/src/services/documents.ts",
+          "symbol": "uploadDocument",
+          "fingerprint": "58da914d1ad60b10c718af5fbff3dbdc949305ba3a415c563126a9a3f488d132"
+        }
+      ]
+    },
+    {
+      "id": "API-005",
+      "name": "文档列表",
+      "method": "GET",
+      "url": "/api/documents",
+      "module_ids": [
+        "MOD-INGEST"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "page",
+          "location": "query",
+          "type": "int",
+          "note": "默认 1，≥1"
+        },
+        {
+          "name": "page_size",
+          "location": "query",
+          "type": "int",
+          "note": "默认 20，1–50"
+        },
+        {
+          "name": "status",
+          "location": "query",
+          "type": "string?",
+          "note": "queued|processing|ready|failed"
+        }
+      ],
+      "response": [
+        {
+          "name": "data",
+          "location": "JSON",
+          "type": "DocumentSummary[]",
+          "note": "含进行中与失败"
+        },
+        {
+          "name": "pagination",
+          "location": "JSON",
+          "type": "PaginationMeta",
+          "note": "后端字段 page/page_size/total_items/total_pages/has_next/has_prev；前端 Mock 类型用 total"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/documents.py",
+          "symbol": "list_documents",
+          "fingerprint": "44b6efe66b4f8a4a13ff6e025434ac4e5c81298be10e09b0667a689791b17958"
+        },
+        {
+          "path": "frontend/src/services/documents.ts",
+          "symbol": "listDocuments",
+          "fingerprint": "58da914d1ad60b10c718af5fbff3dbdc949305ba3a415c563126a9a3f488d132"
+        }
+      ]
+    },
+    {
+      "id": "API-006",
+      "name": "文档详情",
+      "method": "GET",
+      "url": "/api/documents/{document_id}",
+      "module_ids": [
+        "MOD-INGEST"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "document_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        }
+      ],
+      "response": [
+        {
+          "name": "data",
+          "location": "JSON",
+          "type": "DocumentDetail",
+          "note": "Summary + chunks[]（id,ordinal,content,object_types,request_types,entities）+ faqs[]（id,question,answer）。非 ready 时 chunks/faqs 空数组"
+        },
+        {
+          "name": "404",
+          "location": "HTTP",
+          "type": "NOT_FOUND",
+          "note": "文档不存在"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/documents.py",
+          "symbol": "get_document",
+          "fingerprint": "44b6efe66b4f8a4a13ff6e025434ac4e5c81298be10e09b0667a689791b17958"
+        },
+        {
+          "path": "frontend/src/services/documents.ts",
+          "symbol": "getDocument",
+          "fingerprint": "58da914d1ad60b10c718af5fbff3dbdc949305ba3a415c563126a9a3f488d132"
+        }
+      ]
+    },
+    {
+      "id": "API-007",
+      "name": "新建会话",
+      "method": "POST",
+      "url": "/api/conversations",
+      "module_ids": [
+        "MOD-QA"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "body",
+          "location": "JSON",
+          "type": "object",
+          "note": "前端传 {}"
+        }
+      ],
+      "response": [
+        {
+          "name": "data",
+          "location": "JSON",
+          "type": "ConversationDetail",
+          "note": "id,title=新会话,handoff_state,messages[],created_at,updated_at"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "create_conversation",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "createConversation",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        }
+      ]
+    },
+    {
+      "id": "API-008",
+      "name": "会话列表",
+      "method": "GET",
+      "url": "/api/conversations",
+      "module_ids": [
+        "MOD-QA"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "page",
+          "location": "query",
+          "type": "int",
+          "note": "默认 1"
+        },
+        {
+          "name": "page_size",
+          "location": "query",
+          "type": "int",
+          "note": "默认 20，上限 50"
+        }
+      ],
+      "response": [
+        {
+          "name": "data[]",
+          "location": "JSON",
+          "type": "ConversationSummary",
+          "note": "id,title,updated_at,preview（末条前 30 字）"
+        },
+        {
+          "name": "pagination",
+          "location": "JSON",
+          "type": "PaginationMeta",
+          "note": "同列表信封"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "list_conversations",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "listConversations",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        }
+      ]
+    },
+    {
+      "id": "API-009",
+      "name": "会话快照",
+      "method": "GET",
+      "url": "/api/conversations/{conversation_id}",
+      "module_ids": [
+        "MOD-QA"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "conversation_id",
+          "location": "path",
+          "type": "int",
+          "note": "进页/回看，不作轮询主通道"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.handoff_state",
+          "location": "data",
+          "type": "none|waiting|in_progress",
+          "note": "由未关闭工单映射；员工看不到 pending/processing/closed"
+        },
+        {
+          "name": "data.messages[]",
+          "location": "data",
+          "type": "MessagePublic",
+          "note": "id,role,content,source,created_at"
+        },
+        {
+          "name": "404",
+          "location": "HTTP",
+          "type": "NOT_FOUND",
+          "note": "会话不存在"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "get_conversation",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "getConversation",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        }
+      ]
+    },
+    {
+      "id": "API-010",
+      "name": "员工发消息",
+      "method": "POST",
+      "url": "/api/conversations/{conversation_id}/messages",
+      "algorithm_id": "ALG-QA",
+      "module_ids": [
+        "MOD-QA"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "conversation_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        },
+        {
+          "name": "content",
+          "location": "JSON body",
+          "type": "string",
+          "note": "MessageCreate；空或超长 → 400 请输入要发送的内容"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.user_message",
+          "location": "data",
+          "type": "MessagePublic",
+          "note": "role=user"
+        },
+        {
+          "name": "data.assistant_message",
+          "location": "data",
+          "type": "null",
+          "note": "自动回复不在本响应给全文"
+        },
+        {
+          "name": "data.handoff_state",
+          "location": "data",
+          "type": "string",
+          "note": null
+        },
+        {
+          "name": "data.stream",
+          "location": "data",
+          "type": "boolean",
+          "note": "true 后续走 API-017"
+        },
+        {
+          "name": "409",
+          "location": "HTTP",
+          "type": "CONFLICT",
+          "note": "请等待当前回复结束"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "send_message",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "send_user_message",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "sendMessage",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        }
+      ]
+    },
+    {
+      "id": "API-011",
+      "name": "转人工",
+      "method": "POST",
+      "url": "/api/conversations/{conversation_id}/transfer",
+      "algorithm_id": "ALG-TICKET",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "conversation_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        },
+        {
+          "name": "body",
+          "location": "JSON",
+          "type": "EmptyBody?",
+          "note": "可空"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.handoff_state",
+          "location": "data",
+          "type": "waiting",
+          "note": null
+        },
+        {
+          "name": "data.wait_message",
+          "location": "data",
+          "type": "MessagePublic",
+          "note": "role=system，content=wait_human_text"
+        },
+        {
+          "name": "409",
+          "location": "HTTP",
+          "type": "CONFLICT",
+          "note": "当前已在等待或由人工处理"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "transfer_conversation",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "backend/src/services/ticket.py",
+          "symbol": "transfer",
+          "fingerprint": "6b5465566a959e0e3683db6074465ebf42d74b5e177898052df4006256966d4b"
+        }
+      ]
+    },
+    {
+      "id": "API-012",
+      "name": "工单列表",
+      "method": "GET",
+      "url": "/api/tickets",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "status",
+          "location": "query",
+          "type": "pending|processing|closed?",
+          "note": "客服页签"
+        },
+        {
+          "name": "page / page_size",
+          "location": "query",
+          "type": "int",
+          "note": "同其他列表"
+        }
+      ],
+      "response": [
+        {
+          "name": "data[]",
+          "location": "JSON",
+          "type": "TicketSummary",
+          "note": "含工单 status；仅工作台使用"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "list_tickets",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "listTickets",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        }
+      ]
+    },
+    {
+      "id": "API-013",
+      "name": "工单详情",
+      "method": "GET",
+      "url": "/api/tickets/{ticket_id}",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "ticket_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        }
+      ],
+      "response": [
+        {
+          "name": "data",
+          "location": "JSON",
+          "type": "TicketDetail",
+          "note": "Summary + messages + accepted_at + closed_at"
+        },
+        {
+          "name": "404",
+          "location": "HTTP",
+          "type": "NOT_FOUND",
+          "note": "工单不存在"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "get_ticket",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "getTicket",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        }
+      ]
+    },
+    {
+      "id": "API-014",
+      "name": "接入工单",
+      "method": "POST",
+      "url": "/api/tickets/{ticket_id}/accept",
+      "algorithm_id": "ALG-TICKET",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "ticket_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        }
+      ],
+      "response": [
+        {
+          "name": "data.id",
+          "location": "data",
+          "type": "int",
+          "note": null
+        },
+        {
+          "name": "data.status",
+          "location": "data",
+          "type": "processing",
+          "note": null
+        },
+        {
+          "name": "data.accepted_at",
+          "location": "data",
+          "type": "string datetime",
+          "note": null
+        },
+        {
+          "name": "409",
+          "location": "HTTP",
+          "type": "CONFLICT",
+          "note": "无法接入"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "accept_ticket",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "acceptTicket",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        }
+      ]
+    },
+    {
+      "id": "API-015",
+      "name": "客服回复",
+      "method": "POST",
+      "url": "/api/tickets/{ticket_id}/messages",
+      "algorithm_id": "ALG-TICKET",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "content",
+          "location": "JSON body",
+          "type": "string",
+          "note": "TicketMessageCreate"
+        }
+      ],
+      "response": [
+        {
+          "name": "data.agent_message",
+          "location": "data",
+          "type": "MessagePublic",
+          "note": "role=agent，source=null；随后 WS 推员工"
+        },
+        {
+          "name": "409",
+          "location": "HTTP",
+          "type": "CONFLICT",
+          "note": "不能回复"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "reply_ticket",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "replyTicket",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        }
+      ]
+    },
+    {
+      "id": "API-016",
+      "name": "关闭工单",
+      "method": "POST",
+      "url": "/api/tickets/{ticket_id}/close",
+      "algorithm_id": "ALG-TICKET",
+      "module_ids": [
+        "MOD-TICKET"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "ticket_id",
+          "location": "path",
+          "type": "int",
+          "note": null
+        }
+      ],
+      "response": [
+        {
+          "name": "data.status",
+          "location": "data",
+          "type": "closed",
+          "note": null
+        },
+        {
+          "name": "data.closed_at",
+          "location": "data",
+          "type": "string datetime",
+          "note": null
+        },
+        {
+          "name": "409",
+          "location": "HTTP",
+          "type": "CONFLICT",
+          "note": "已关闭"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/tickets.py",
+          "symbol": "close_ticket",
+          "fingerprint": "29dc4d9e5cd4d818c75613f8c96608f48ecf2b87de57feaa15d593583d62f214"
+        },
+        {
+          "path": "frontend/src/services/tickets.ts",
+          "symbol": "closeTicket",
+          "fingerprint": "9e79304b114c812eb8c6b255ca0c02f90a07baa68e1150e9b8025fb92ccb4656"
+        }
+      ]
+    },
+    {
+      "id": "API-017",
+      "name": "自动回复 SSE",
+      "method": "GET",
+      "url": "/api/conversations/{conversation_id}/assistant-stream",
+      "algorithm_id": "ALG-QA",
+      "module_ids": [
+        "MOD-QA",
+        "MOD-LLM-HTTP"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "after_user_message_id",
+          "location": "query",
+          "type": "int",
+          "note": "必填，须属于该会话且为 user"
+        },
+        {
+          "name": "Authorization",
+          "location": "header",
+          "type": "Bearer JWT",
+          "note": "前端 fetch 非 axios"
+        }
+      ],
+      "response": [
+        {
+          "name": "Content-Type",
+          "location": "header",
+          "type": "text/event-stream",
+          "note": "Cache-Control=no-cache; X-Accel-Buffering=no"
+        },
+        {
+          "name": "event meta",
+          "location": "SSE JSON",
+          "type": "object",
+          "note": "assistant_message_id number|null, source faq|small_talk|knowledge_qa, handoff_state"
+        },
+        {
+          "name": "event delta",
+          "location": "SSE JSON",
+          "type": "object",
+          "note": "{text:string} 增量"
+        },
+        {
+          "name": "event done",
+          "location": "SSE JSON",
+          "type": "object",
+          "note": "{assistant_message: MessagePublic}"
+        },
+        {
+          "name": "event error",
+          "location": "SSE JSON",
+          "type": "object",
+          "note": "error=暂时无法回答，请稍后重试；不落 assistant"
+        },
+        {
+          "name": "404/409",
+          "location": "HTTP JSON",
+          "type": "envelope",
+          "note": "无法继续回复 / 请等待当前回复结束"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/routes/conversations.py",
+          "symbol": "assistant_stream",
+          "fingerprint": "3b844a78580d626fbe5e02cb76777327e65165d9b1b88f9eca69a9f78e5c46d8"
+        },
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "stream_assistant_reply / format_sse",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        },
+        {
+          "path": "frontend/src/services/conversations.ts",
+          "symbol": "openAssistantStream",
+          "fingerprint": "48cb84d85aec5dcfdeba66f8e5fe2ffaadf91e671412ee5cff638988e947b957"
+        }
+      ]
+    },
+    {
+      "id": "API-018",
+      "name": "实时 WebSocket",
+      "method": "GET",
+      "url": "/ws",
+      "algorithm_id": "ALG-TICKET",
+      "module_ids": [
+        "MOD-WS"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "access_token",
+          "location": "query",
+          "type": "string",
+          "note": "禁止把 Token 写入日志；鉴权失败 close 1008"
+        }
+      ],
+      "response": [
+        {
+          "name": "ping/pong",
+          "location": "text frame",
+          "type": "string",
+          "note": "服务端按 ws_heartbeat_seconds 发 ping，客户端回 pong"
+        },
+        {
+          "name": "document.progress",
+          "location": "JSON",
+          "type": "object",
+          "note": "document_id,status,stage,progress_percent；按 user_id 单播"
+        },
+        {
+          "name": "document.ready / document.failed",
+          "location": "JSON",
+          "type": "object",
+          "note": "failed 含 error_message；单播上传者"
+        },
+        {
+          "name": "ticket.created",
+          "location": "JSON",
+          "type": "object",
+          "note": "ticket_id,conversation_id,title,preview；广播"
+        },
+        {
+          "name": "ticket.accepted / ticket.closed",
+          "location": "JSON",
+          "type": "object",
+          "note": "ticket_id,conversation_id"
+        },
+        {
+          "name": "handoff.changed",
+          "location": "JSON",
+          "type": "object",
+          "note": "conversation_id,handoff_state"
+        },
+        {
+          "name": "message.created",
+          "location": "JSON",
+          "type": "object",
+          "note": "conversation_id,message:MessagePublic"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/api/ws.py",
+          "symbol": "websocket_endpoint / publish_*",
+          "fingerprint": "a1c974f0835300eb29930f6709e4f002028101e18432a702051719d4d07fe306"
+        },
+        {
+          "path": "frontend/src/services/ws.ts",
+          "symbol": "connectRealtime / socketUrl",
+          "fingerprint": "52366418cfc04840715a11a443038baee3bdf8e2d5c120482c3a34413228fee7"
+        }
+      ]
+    },
+    {
+      "id": "EXT-001",
+      "name": "百炼 Chat Completions",
+      "method": "POST",
+      "url": "{LLM_BASE_URL}/chat/completions",
+      "algorithm_id": "ALG-LLM-HTTP",
+      "module_ids": [
+        "MOD-LLM-HTTP"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "Authorization",
+          "location": "header",
+          "type": "Bearer LLM_API_KEY",
+          "note": "页面不展示密钥；空 Key 时不发 HTTP，走本地 Mock"
+        },
+        {
+          "name": "model",
+          "location": "JSON",
+          "type": "string",
+          "note": "源码默认 qwen-plus"
+        },
+        {
+          "name": "messages",
+          "location": "JSON",
+          "type": "array",
+          "note": "role/content"
+        },
+        {
+          "name": "temperature / stream / response_format / max_tokens",
+          "location": "JSON",
+          "type": "mixed",
+          "note": "JSON 模式 response_format=json_object；闲聊 max_tokens=256"
+        }
+      ],
+      "response": [
+        {
+          "name": "choices[0].message.content",
+          "location": "JSON",
+          "type": "string",
+          "note": "非流式"
+        },
+        {
+          "name": "choices[0].delta.content",
+          "location": "SSE data",
+          "type": "string",
+          "note": "流式；finish_reason=length 时按已输出落库"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/integrations/llm_http.py",
+          "symbol": "_http_chat / _http_stream / chat_json / chat_stream",
+          "fingerprint": "e4e30a18ca4aa4825cb1681eab31c5d71c26b2243ba3b1db4206ff6748e363ed"
+        }
+      ]
+    },
+    {
+      "id": "EXT-002",
+      "name": "百炼 Embeddings",
+      "method": "POST",
+      "url": "{LLM_BASE_URL}/embeddings",
+      "algorithm_id": "ALG-LLM-HTTP",
+      "module_ids": [
+        "MOD-LLM-HTTP"
+      ],
+      "implementation_status": "源码已核对",
+      "request": [
+        {
+          "name": "model",
+          "location": "JSON",
+          "type": "string",
+          "note": "源码默认 text-embedding-v3"
+        },
+        {
+          "name": "input",
+          "location": "JSON",
+          "type": "string[]",
+          "note": "每批最多 10 条 EMBED_BATCH_LIMIT"
+        },
+        {
+          "name": "dimensions",
+          "location": "JSON",
+          "type": "int",
+          "note": "源码默认 1024"
+        },
+        {
+          "name": "encoding_format",
+          "location": "JSON",
+          "type": "string",
+          "note": "float"
+        }
+      ],
+      "response": [
+        {
+          "name": "data[].embedding",
+          "location": "JSON",
+          "type": "float[]",
+          "note": "按 index 排序后写回"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/integrations/llm_http.py",
+          "symbol": "embed_texts / _http_embed",
+          "fingerprint": "e4e30a18ca4aa4825cb1681eab31c5d71c26b2243ba3b1db4206ff6748e363ed"
+        }
+      ]
+    }
+  ],
+  "algorithms": [
+    {
+      "id": "ALG-AUTH",
+      "name": "内部账号鉴权",
+      "subject": "唯一内部用户 bcrypt 校验与 JWT 签发/解码。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "启动时若用户表为空，用配置中的 internal_username 与 internal_password 种子哈希后写入。",
+        "登录：按用户名查询，bcrypt.checkpw；失败统一当不存在。",
+        "JWT payload：sub=用户 id 字符串、username、iat、exp=现在+jwt_expire_hours，算法 HS256，密钥为 secret_key。",
+        "受保护接口 HTTPBearer 解码；WS 用 query access_token 走同一套 decode。"
+      ],
+      "branches": [
+        "logout 不拉黑 Token，只让前端丢弃。",
+        "顶栏没有退出按钮：API-003 与 AuthProvider.logout 已实现，但当前 AppHeader 未调用。"
+      ],
+      "selection": "authenticate 返回 User 或 None；decode 失败返回 None。",
+      "failures": [
+        "密码错误不区分用户名或密码。",
+        "不读取真实 .env，因此当前运行密钥与种子密码未知。"
+      ],
+      "parameters": [
+        {
+          "key": "jwt_expire_hours",
+          "value": "12",
+          "value_kind": "source_default",
+          "location": "backend/src/config/settings.py 与 .env.example JWT_EXPIRE_HOURS",
+          "impact": "登录有效期"
+        },
+        {
+          "key": "secret_key / internal_password",
+          "value": "敏感，未读取运行值",
+          "value_kind": "runtime_unknown",
+          "location": "backend/.env.example 字段名 SECRET_KEY、INTERNAL_PASSWORD",
+          "impact": "JWT 签名与种子账号"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/auth.py",
+          "symbol": "AuthService",
+          "fingerprint": "bcd61abced6387132d2fd66887839aea8d0770dc5269feff8ff19598cbff1c43"
+        },
+        {
+          "path": "backend/src/api/deps.py",
+          "symbol": "get_current_user",
+          "fingerprint": "466e3f2daa8e407db106c9649eb51f7399e036d2d223797d72cccd887d9c2e55"
+        }
+      ]
+    },
+    {
+      "id": "ALG-INGEST",
+      "name": "入库后台任务",
+      "subject": "上传校验后的异步状态机：抽正文、按字符分块、批量打标、向量、抽 FAQ、成功生效或回滚。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "扩展名映射 pdf/docx/markdown/txt；超 upload_max_bytes 或未知扩展名在提交阶段失败，不建行。",
+        "建 queued 行，文件写到 upload_dir/{uuid}_{filename}，立即返回 API-004，asyncio 任务限时 ingest_job_timeout_seconds。",
+        "extracting：pypdf（加密 PDF 视为空）、python-docx、txt/md 先 UTF-8 再 GBK。空正文 → failed「无法提取正文，文档未入库」。不提供 OCR，不解析 .doc。",
+        "chunking：先按空行切段；段长超过 chunk_size_chars 则按字符滑动，窗口=chunk_size_chars，重叠=chunk_overlap_chars，步长 max(1, size-overlap)。单位是字符不是 token。",
+        "tagging：taxonomy JSON + 提示 m001_tagging.txt，按 tag_batch_size 条调用 chat_json(purpose=tagging, temperature=0.1)。只保留 taxonomy 内的 object/request code；实体 type 仅 product/device/resource。全部块都无对象且无诉求 → 入库失败。",
+        "embedding：chunk 文本走 embed_texts；httpx 路径每批最多 10 条。",
+        "faq_extracting：原文截断 faq_source_max_chars，m002_faq.txt（替换 faq_max_per_document），chat_json purpose=faq temperature=0.2；再对 question 向量化。",
+        "同一事务先删旧 chunks/faqs 再写入，文档标 ready、progress=100，推 progress 与 document.ready。任一步失败：删 chunks/faqs、标 failed、删未完成原文、推 failed。不出现半可检索。",
+        "进程启动 fail_interrupted_ingests：仍 queued/processing 的标 failed「入库中断，请重新上传」并删文件，不自动续跑。"
+      ],
+      "branches": [
+        "有 LLM Key：llm_http 打真实百炼；无 Key：同一函数走本地 Mock，ingest 不另开通道。",
+        "阶段进度 queued0 extracting10 chunking25 tagging45 embedding70 faq_extracting90 ready100。",
+        "超时与 LlmHttpError 对用户都是「入库失败，请重新上传」。"
+      ],
+      "selection": "仅 status=ready 的文档其 chunks/faqs 可被列表计数与问答召回。",
+      "failures": [
+        "扫描件/加密 PDF/空文档 → 无法提取正文。",
+        "打标全空或模型失败 → 入库失败并回滚。",
+        "不读取用户上传内容来填写本页。"
+      ],
+      "parameters": [
+        {
+          "key": "chunk_size_chars",
+          "value": "500",
+          "value_kind": "source_default",
+          "location": "settings.chunk_size_chars / CHUNK_SIZE_CHARS",
+          "impact": "分块窗口（字符）"
+        },
+        {
+          "key": "chunk_overlap_chars",
+          "value": "80",
+          "value_kind": "source_default",
+          "location": "settings.chunk_overlap_chars",
+          "impact": "分块重叠（字符）"
+        },
+        {
+          "key": "tag_batch_size",
+          "value": "8",
+          "value_kind": "source_default",
+          "location": "settings.tag_batch_size",
+          "impact": "M-001 每批块数"
+        },
+        {
+          "key": "faq_max_per_document",
+          "value": "20",
+          "value_kind": "source_default",
+          "location": "settings.faq_max_per_document",
+          "impact": "单文档 FAQ 上限"
+        },
+        {
+          "key": "faq_source_max_chars",
+          "value": "20000",
+          "value_kind": "source_default",
+          "location": "settings.faq_source_max_chars",
+          "impact": "抽 FAQ 原文截断"
+        },
+        {
+          "key": "ingest_job_timeout_seconds",
+          "value": "300",
+          "value_kind": "source_default",
+          "location": "settings.ingest_job_timeout_seconds",
+          "impact": "单文档后台超时"
+        },
+        {
+          "key": "upload_max_bytes",
+          "value": "20971520",
+          "value_kind": "source_default",
+          "location": "settings.upload_max_bytes",
+          "impact": "上传大小"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/ingest.py",
+          "symbol": "split_chunks / _ingest_document / _tag_chunks / _extract_faqs / _fail_document",
+          "fingerprint": "ab4f8365bdd27f4def2871c9c68d9f21355593f4d94b7acf91cc400ec9c2d9cc"
+        },
+        {
+          "path": "backend/src/prompts/m001_tagging.txt",
+          "symbol": "M-001",
+          "fingerprint": "6ec081e823a28c226c058dfc1e90c7aceb037bca9c2adf1ab070c84d0c145e26"
+        },
+        {
+          "path": "backend/src/prompts/m002_faq.txt",
+          "symbol": "M-002",
+          "fingerprint": "70677c4ec34524577a341ce846c8af181c8e537909b1810b5d9fc06526c120c9"
+        },
+        {
+          "path": "backend/src/main.py",
+          "symbol": "fail_interrupted_ingests on_startup",
+          "fingerprint": "7524d99587d6c89d80031d310e52563364919a488e196524e0804876bd1a0cb4"
+        }
+      ]
+    },
+    {
+      "id": "ALG-FAQ",
+      "name": "FAQ 拦截",
+      "subject": "提问先走 FAQ：规范化全等，否则问句向量与 FAQ 向量最大余弦。不按标签过滤。命中则跳过分类与召回。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "语料：Document.status=ready 的全部 Faq。",
+        "normalize_faq_question：NFKC → lower → 去掉空白与 \\W_。",
+        "若规范化后非空且与某 FAQ 问题全等，直接返回该 answer。",
+        "否则 embed_texts([user_text])，与每条 faq.embedding 算余弦，取最高分。",
+        "最高分 ≥ faq_similarity_threshold（源码默认 0.82）则命中。"
+      ],
+      "branches": [
+        "向量失败（LlmHttpError）→ 跳过拦截，进入分类。",
+        "无 FAQ 或未达阈值 → 进入分类。"
+      ],
+      "selection": "多条取余弦最高且过阈值的一条；全等优先于向量。",
+      "failures": [
+        "空向量或长度不一致余弦为 0。",
+        "拦截成功后 SSE source=faq，正文按标点切段 delta，不走对话模型。"
+      ],
+      "parameters": [
+        {
+          "key": "faq_similarity_threshold",
+          "value": "0.82",
+          "value_kind": "source_default",
+          "location": "settings.faq_similarity_threshold / FAQ_SIMILARITY_THRESHOLD",
+          "impact": "相近问句是否当 FAQ；运行 .env 可能不同，未读取"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "normalize_faq_question / _match_faq / cosine_similarity",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        },
+        {
+          "path": "backend/src/repositories/document.py",
+          "symbol": "list_retrievable_faqs",
+          "fingerprint": "fdc800759f5fceeb414f00b61680a76a55e958f8dcc9c6e335e4f0f1cc6eeb6f"
+        }
+      ]
+    },
+    {
+      "id": "ALG-QA",
+      "name": "提问编排",
+      "subject": "API-017：FAQ 之后用 M-003 分类，再闲聊流、超范围同一文案、或标签召回后 M-005。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "先发 SSE meta（此时 assistant_message_id 为 null，source 已定），再 delta，成功则落 assistant 去 lock 后 done。",
+        "FAQ 命中：source=faq，stream=false，用 split_delta_text 按句读标点切段推 delta。",
+        "否则 _classify：最近 context_message_limit 条 + taxonomy + m003_classify.txt，chat_json temperature=0.1。丢弃 clarification_question，不调用实时工单工具。",
+        "message_type=small_talk：默认走 M-004 流式（temperature=0.7，max_tokens=256）。若 issues 含 needs_clarification 或 requires_live_data，改走超范围兜底；若含 out_of_scope 且用户原文不匹配寒暄提示正则（天气|你好|早上好|哈哈|谢谢|随便聊聊），也改走兜底。",
+        "非闲聊：issues 为空，或全部为超范围三类（needs_clarification / requires_live_data / out_of_scope）或去掉超范围后无标签 → 同一句 out_of_scope_text，source=knowledge_qa，切段，不追问。",
+        "否则对每个 ready 且带标签的 issue 做 ALG-RETRIEVE，合并去重；无召回 → no_knowledge_text。有召回 → m005_knowledge_qa.txt 流式 temperature=0.2。",
+        "_plan_reply 抛错时同样改走超范围兜底，不 500。"
+      ],
+      "branches": [
+        "已有该 user 之后的 assistant → 重放 meta/delta/done，不重新生成。",
+        "lock 属于别的 user_message → 409。",
+        "分类 JSON 失败返回 {}，视为超范围。",
+        "M-004/M-005 流式 LlmHttpError → SSE error「暂时无法回答，请稍后重试」，release_lock，不落 assistant。",
+        "三类超范围对员工是同一文案，产品上不展示三种内部 status。"
+      ],
+      "selection": "来源三选一展示：FAQ、闲聊、知识问答。超范围与无法回答都标知识问答，但固定文案不同。",
+      "failures": [
+        "编排异常兜底超范围句。",
+        "流式失败不写助手消息，前端显示错误条。"
+      ],
+      "parameters": [
+        {
+          "key": "out_of_scope_text",
+          "value": "当前问题超出知识服务范围，你可以点击转人工。",
+          "value_kind": "source_default",
+          "location": "settings.out_of_scope_text",
+          "impact": "三类超范围员工可见句"
+        },
+        {
+          "key": "no_knowledge_text",
+          "value": "现有知识无法回答。你可以点击转人工。",
+          "value_kind": "source_default",
+          "location": "settings.no_knowledge_text",
+          "impact": "召回为空"
+        },
+        {
+          "key": "context_message_limit",
+          "value": "16",
+          "value_kind": "source_default",
+          "location": "settings.context_message_limit",
+          "impact": "分类/闲聊/知识问答上下文条数"
+        },
+        {
+          "key": "CLASSIFY_TEMPERATURE",
+          "value": "0.1",
+          "value_kind": "source_constant",
+          "location": "qa.py",
+          "impact": "M-003"
+        },
+        {
+          "key": "SMALL_TALK_TEMPERATURE / SMALL_TALK_MAX_TOKENS",
+          "value": "0.7 / 256",
+          "value_kind": "source_constant",
+          "location": "qa.py",
+          "impact": "M-004 流式"
+        },
+        {
+          "key": "KNOWLEDGE_TEMPERATURE",
+          "value": "0.2",
+          "value_kind": "source_constant",
+          "location": "qa.py",
+          "impact": "M-005"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "stream_assistant_reply / _plan_reply / _classify / _small_talk_messages / _knowledge_messages",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        },
+        {
+          "path": "backend/src/prompts/m003_classify.txt",
+          "symbol": "M-003",
+          "fingerprint": "b84358d68943b2fc2071dca936aac8eb3ad7a303c5d867511a4e9900de2ab20a"
+        },
+        {
+          "path": "backend/src/prompts/m004_small_talk.txt",
+          "symbol": "M-004",
+          "fingerprint": "af6a2d63f0608cd7e51df6f2c996ea3b46a83f374b2c6d781480627b5f6c5aee"
+        },
+        {
+          "path": "backend/src/prompts/m005_knowledge_qa.txt",
+          "symbol": "M-005",
+          "fingerprint": "028376b2f471585a7e94315283d8367da267a652c722cd169b357c8a3e560c49"
+        }
+      ]
+    },
+    {
+      "id": "ALG-RETRIEVE",
+      "name": "标签过滤后余弦召回",
+      "subject": "只在过滤后的 ready 分块上检索，不打全库。召回结果交给 M-005，不属于上传算法。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "object_set = 合法 primary_object_type + related_object_types；request_type 须在 taxonomy。",
+        "两侧都空 → 直接不召回。",
+        "过滤：对象侧非空则 chunk.object_types 须有交集；诉求非空则 chunk.request_types 须包含该诉求。",
+        "对 retrieval_query（缺省用原问句）embed_texts，过滤后余弦 ≥ retrieval_min_score，降序取 retrieval_top_k。",
+        "返回 id/content/object_types/request_types；多 issue 合并按 id 去重。"
+      ],
+      "branches": [
+        "embed 失败视为空召回 → 无法回答句。",
+        "无重排实现；无额外去重算法，仅 id 去重。"
+      ],
+      "selection": "过阈值的最高分 Top K。",
+      "failures": [
+        "标签过滤后 0 块 → 无法回答，不回退全库。"
+      ],
+      "parameters": [
+        {
+          "key": "retrieval_top_k",
+          "value": "5",
+          "value_kind": "source_default",
+          "location": "settings.retrieval_top_k",
+          "impact": "召回条数"
+        },
+        {
+          "key": "retrieval_min_score",
+          "value": "0.45",
+          "value_kind": "source_default",
+          "location": "settings.retrieval_min_score",
+          "impact": "最低余弦"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "_retrieve_chunks / _issue_tags",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        },
+        {
+          "path": "backend/src/repositories/document.py",
+          "symbol": "list_retrievable_chunks",
+          "fingerprint": "fdc800759f5fceeb414f00b61680a76a55e958f8dcc9c6e335e4f0f1cc6eeb6f"
+        }
+      ]
+    },
+    {
+      "id": "ALG-TICKET",
+      "name": "工单状态机",
+      "subject": "pending → processing → closed。员工只看 handoff_state：pending→waiting，processing→in_progress，关闭后 none。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "转人工：无未关闭单则 create_pending，写入 wait_human_text 系统消息，WS：ticket.created、handoff.changed=waiting、message.created。",
+        "接入：仅 pending → processing，WS ticket.accepted + handoff in_progress。",
+        "回复：仅 processing，role=agent，WS message.created。",
+        "关闭：非 closed 可关，WS ticket.closed + handoff none。关闭后员工提问重新走自动回复。",
+        "人工进行中员工再发消息：只落 user，stream=false，不走 FAQ/模型。"
+      ],
+      "branches": [
+        "不超时关单；客服不接入则一直 pending + 等待文案。",
+        "员工端代码路径无 ticket.status 字段展示。"
+      ],
+      "selection": "以服务端工单行状态为准；409 时前端提示无法接入/不能回复/已关闭。",
+      "failures": [
+        "会话不存在转人工 → 404 会话不存在。",
+        "重复转人工 → 409。"
+      ],
+      "parameters": [
+        {
+          "key": "wait_human_text",
+          "value": "正在等待人工客服",
+          "value_kind": "source_default",
+          "location": "settings.wait_human_text",
+          "impact": "员工等待条与系统消息"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/services/ticket.py",
+          "symbol": "transfer / accept / reply / close / _handoff 映射在 qa._handoff_state",
+          "fingerprint": "6b5465566a959e0e3683db6074465ebf42d74b5e177898052df4006256966d4b"
+        },
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "_handoff_state",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        }
+      ]
+    },
+    {
+      "id": "ALG-LLM-HTTP",
+      "name": "百炼 httpx Chat/Embedding",
+      "subject": "OpenAI 兼容 HTTP。不是 Agent：无工具列表、无观察环、无 Plugin。",
+      "implementation_status": "源码已核对",
+      "steps": [
+        "has_real_llm_key：settings.llm_api_key 非空才发网。空则 Mock 打标/FAQ/分类/流式闲聊与知识答案、哈希向量。",
+        "Chat 非流：POST /chat/completions，timeout=llm_timeout_seconds，429/5xx/超时最多 llm_max_retries 次短退避；401/403 不重试。JSON 解析失败再请求一次。",
+        "Chat 流：stream=true，解析 data: 行 choices[0].delta.content。",
+        "Embedding：/embeddings，每批 10 条，dimensions=llm_embed_dimensions。"
+      ],
+      "branches": [
+        "入库用途失败文案走「入库失败，请重新上传」；问答流式失败走「暂时无法回答，请稍后重试」。",
+        "禁止 dashscope SDK 与 OpenAIProvider（模块注释约定）。"
+      ],
+      "selection": "固定流水线调用，模型不选工具。",
+      "failures": [
+        "本页不发起百炼调用，也不读取 Key 值。"
+      ],
+      "parameters": [
+        {
+          "key": "llm_base_url",
+          "value": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+          "value_kind": "source_default",
+          "location": "settings.llm_base_url",
+          "impact": "Chat/Embedding 根地址"
+        },
+        {
+          "key": "llm_api_key",
+          "value": "空字符串为源码默认；运行值未知",
+          "value_kind": "runtime_unknown",
+          "location": "字段名 LLM_API_KEY，未读 .env",
+          "impact": "空则 Mock"
+        },
+        {
+          "key": "llm_chat_model",
+          "value": "qwen-plus",
+          "value_kind": "source_default",
+          "location": "settings",
+          "impact": "Chat 模型名"
+        },
+        {
+          "key": "llm_embed_model",
+          "value": "text-embedding-v3",
+          "value_kind": "source_default",
+          "location": "settings",
+          "impact": "向量模型名"
+        },
+        {
+          "key": "llm_embed_dimensions",
+          "value": "1024",
+          "value_kind": "source_default",
+          "location": "settings",
+          "impact": "须与库内向量一致"
+        },
+        {
+          "key": "llm_timeout_seconds",
+          "value": "60",
+          "value_kind": "source_default",
+          "location": "settings",
+          "impact": "单次 HTTP 超时"
+        },
+        {
+          "key": "llm_max_retries",
+          "value": "2",
+          "value_kind": "source_default",
+          "location": "settings",
+          "impact": "可重试次数"
+        }
+      ],
+      "sources": [
+        {
+          "path": "backend/src/integrations/llm_http.py",
+          "symbol": "chat_json / chat_stream / embed_texts",
+          "fingerprint": "e4e30a18ca4aa4825cb1681eab31c5d71c26b2243ba3b1db4206ff6748e363ed"
+        }
+      ]
+    }
+  ],
+  "modules": [
+    {
+      "id": "MOD-AUTH",
+      "name": "鉴权服务",
+      "kind": "普通函数/服务",
+      "responsibility": "bcrypt + JWT，种子用户，无登出黑名单。",
+      "input": "用户名密码或 Bearer/query Token",
+      "output": "User / LoginData / user_id",
+      "algorithm_id": "ALG-AUTH",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/services/auth.py",
+          "symbol": "AuthService",
+          "fingerprint": "bcd61abced6387132d2fd66887839aea8d0770dc5269feff8ff19598cbff1c43"
+        }
+      ]
+    },
+    {
+      "id": "MOD-INGEST",
+      "name": "入库服务",
+      "kind": "普通函数/服务",
+      "responsibility": "上传校验、后台状态机、回滚。",
+      "input": "文件名与字节",
+      "output": "DocumentSummary/Detail 与 WS 进度",
+      "algorithm_id": "ALG-INGEST",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/services/ingest.py",
+          "symbol": "IngestService / _ingest_document",
+          "fingerprint": "ab4f8365bdd27f4def2871c9c68d9f21355593f4d94b7acf91cc400ec9c2d9cc"
+        }
+      ]
+    },
+    {
+      "id": "MOD-QA",
+      "name": "会话与提问编排",
+      "kind": "普通函数/服务",
+      "responsibility": "会话 CRUD、发消息锁、SSE 自动回复。不是 Agent。",
+      "input": "会话 id 与用户文本",
+      "output": "ConversationDetail / SSE 事件",
+      "algorithm_id": "ALG-QA",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/services/qa.py",
+          "symbol": "QaService / stream_assistant_reply",
+          "fingerprint": "a2b60d4c500b1c60a13d815aacfb318cbd1fd86dea5ae3cd209eac9921ec5a6d"
+        }
+      ]
+    },
+    {
+      "id": "MOD-TICKET",
+      "name": "工单服务",
+      "kind": "普通函数/服务",
+      "responsibility": "转人工与工单状态迁移、事件载荷。",
+      "input": "conversation_id 或 ticket_id",
+      "output": "Transfer/Accept/Reply/Close 数据 + WS events",
+      "algorithm_id": "ALG-TICKET",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/services/ticket.py",
+          "symbol": "TicketService",
+          "fingerprint": "6b5465566a959e0e3683db6074465ebf42d74b5e177898052df4006256966d4b"
+        }
+      ]
+    },
+    {
+      "id": "MOD-LLM-HTTP",
+      "name": "百炼 HTTP 客户端",
+      "kind": "外部服务",
+      "responsibility": "httpx Chat/Embedding；无 Key 时本地 Mock。kind 不是 Agent 工具。",
+      "input": "messages 或 texts 与 purpose",
+      "output": "JSON 对象、token 增量或向量",
+      "algorithm_id": "ALG-LLM-HTTP",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/integrations/llm_http.py",
+          "symbol": "chat_json / embed_texts",
+          "fingerprint": "e4e30a18ca4aa4825cb1681eab31c5d71c26b2243ba3b1db4206ff6748e363ed"
+        }
+      ]
+    },
+    {
+      "id": "MOD-WS",
+      "name": "WebSocket 枢纽",
+      "kind": "普通函数/服务",
+      "responsibility": "按用户连接、心跳、文档单播与工单/消息广播。",
+      "input": "access_token 与事件 dict",
+      "output": "JSON 文本帧或 ping",
+      "implementation_status": "源码已核对",
+      "sources": [
+        {
+          "path": "backend/src/api/ws.py",
+          "symbol": "DocumentHub / websocket_endpoint",
+          "fingerprint": "a1c974f0835300eb29930f6709e4f002028101e18432a702051719d4d07fe306"
+        },
+        {
+          "path": "frontend/src/services/ws.ts",
+          "symbol": "connectRealtime",
+          "fingerprint": "52366418cfc04840715a11a443038baee3bdf8e2d5c120482c3a34413228fee7"
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "key": "HOST / PORT",
+      "value": "127.0.0.1 / 8099",
+      "value_kind": "source_default",
+      "location": "settings.host/port 与 backend/.env.example",
+      "impact": "后端监听。本任务不读取真实 .env，未知是否被改写。"
+    },
+    {
+      "key": "VITE 开发端口",
+      "value": "5199",
+      "value_kind": "source_constant",
+      "location": "frontend/vite.config.ts server.port；代理 /api 与 /ws → VITE_BACKEND_PROXY_TARGET 默认 http://localhost:8099",
+      "impact": "浏览器只打前端源。业务代码不写死后端端口。"
+    },
+    {
+      "key": "VITE_API_BASE_URL",
+      "value": "/api",
+      "value_kind": "source_default",
+      "location": "frontend/.env.example 与 api.ts 回退",
+      "impact": "Axios 与 SSE 前缀"
+    },
+    {
+      "key": "VITE_WS_PATH",
+      "value": "/ws（模板有此字段）",
+      "value_kind": "source_default",
+      "location": "frontend/.env.example；ws.ts 实际写死 pathname /ws，未读该变量",
+      "impact": "设计有字段，实现未使用该环境变量"
+    },
+    {
+      "key": "ws_heartbeat_seconds",
+      "value": "20",
+      "value_kind": "source_default",
+      "location": "settings.ws_heartbeat_seconds",
+      "impact": "服务端 ping 间隔"
+    },
+    {
+      "key": "ws_reconnect_max_seconds",
+      "value": "30（配置默认存在）",
+      "value_kind": "source_default",
+      "location": "settings 与 .env.example WS_RECONNECT_MAX_SECONDS",
+      "impact": "技术方案写前端指数退避上限；frontend/src/services/ws.ts 未找到重连实现，属仅设计/未接到前端"
+    },
+    {
+      "key": "LLM_API_KEY / SECRET_KEY / INTERNAL_PASSWORD",
+      "value": "敏感字段名，未读取运行值",
+      "value_kind": "runtime_unknown",
+      "location": "backend/.env.example 仅字段名",
+      "impact": "空 Key 则模型走 Mock；本页不粘贴任何密钥"
+    },
+    {
+      "key": "faq_similarity_threshold",
+      "value": "0.82",
+      "value_kind": "source_default",
+      "location": "settings.py 与 FAQ_SIMILARITY_THRESHOLD",
+      "impact": "FAQ 余弦拦截阈值；运行文件可能覆盖，未知"
+    },
+    {
+      "key": "chunk_size_chars / chunk_overlap_chars",
+      "value": "500 / 80",
+      "value_kind": "source_default",
+      "location": "settings.py",
+      "impact": "分块字符窗口与重叠"
+    },
+    {
+      "key": "message_max_chars",
+      "value": "2000",
+      "value_kind": "source_default",
+      "location": "settings.message_max_chars",
+      "impact": "员工与客服发送上限"
+    },
+    {
+      "key": "tag_taxonomy_path",
+      "value": "docs/tag-taxonomy.json",
+      "value_kind": "source_default",
+      "location": "settings.tag_taxonomy_path",
+      "impact": "打标与分类允许的对象/诉求 code"
+    }
+  ]
+}

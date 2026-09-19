@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>员工端 · 智能客服系统</title>
+  <link rel="stylesheet" href="../assets/app.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">智能客服系统</div>
+      <nav class="nav">
+        <a class="active" href="../02-employee/index.html">员工端</a>
+        <a href="../04-agent/index.html">客服工作台</a>
+        <a href="../03-knowledge/index.html">知识库</a>
+      </nav>
+    </header>
+    <div class="workspace">
+      <aside class="side">
+        <h2>历史会话</h2>
+        <div class="list" id="sessions"></div>
+      </aside>
+      <section class="main">
+        <div class="main-head" id="title">会话</div>
+        <div class="messages" id="messages"></div>
+        <div class="wait-banner hidden" id="wait"></div>
+        <div class="composer">
+          <textarea id="input" rows="2" placeholder="输入问题"></textarea>
+          <button class="btn btn-secondary" id="handoff" type="button">转人工</button>
+          <button class="btn btn-primary" id="send" type="button" disabled>发送</button>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script src="../assets/app.js"></script>
+  <script>
+    const state = CS.requireAuth();
+    if (!state) throw new Error("auth");
+    const sessionsEl = document.getElementById("sessions");
+    const messagesEl = document.getElementById("messages");
+    const titleEl = document.getElementById("title");
+    const waitEl = document.getElementById("wait");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    const handoff = document.getElementById("handoff");
+    let streaming = null;
+    let busy = false;
+
+    function current() {
+      return state.sessions.find((s) => s.id === state.activeSession) || state.sessions[0];
+    }
+
+    function render() {
+      sessionsEl.innerHTML = state.sessions.map((s) => `
+        <div class="list-row ${s.id === state.activeSession ? "active" : ""}" data-id="${s.id}">
+          <div class="title truncate">${CS.escapeHtml(s.title)}</div>
+          <div class="meta">${s.handoff === "waiting" ? "等待人工" : s.handoff === "in_progress" ? "人工处理中" : "可继续提问"}</div>
+        </div>`).join("");
+      const sess = current();
+      titleEl.textContent = sess.title;
+      CS.renderMessages(messagesEl, sess.messages, streaming);
+      waitEl.classList.toggle("hidden", sess.handoff === "none" || sess.handoff === "closed");
+      waitEl.textContent = sess.handoff === "waiting" ? "正在等待人工客服" : sess.handoff === "in_progress" ? "人工客服处理中" : "";
+      handoff.disabled = busy || sess.handoff === "waiting" || sess.handoff === "in_progress";
+      send.disabled = busy || !input.value.trim();
+    }
+
+    sessionsEl.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-id]");
+      if (!row || busy) return;
+      state.activeSession = row.dataset.id;
+      CS.save(state);
+      render();
+    });
+    input.addEventListener("input", () => { send.disabled = busy || !input.value.trim(); });
+
+    send.addEventListener("click", () => {
+      const text = input.value.trim();
+      if (!text || busy) return;
+      const sess = current();
+      sess.messages.push({ role: "user", text });
+      if (sess.messages.length === 1) sess.title = text.slice(0, 20);
+      input.value = "";
+      if (sess.handoff === "waiting" || sess.handoff === "in_progress") {
+        const ticket = state.tickets.find((t) => t.sessionId === sess.id && t.status !== "closed");
+        if (ticket) ticket.preview = text;
+        CS.save(state);
+        render();
+        return;
+      }
+      const reply = CS.replyFor(text);
+      busy = true;
+      streaming = { source: reply.source, text: "" };
+      render();
+      CS.streamText(reply.text, (chunk) => {
+        streaming.text = chunk;
+        CS.renderMessages(messagesEl, sess.messages, streaming);
+      }, () => {
+        sess.messages.push({ role: "sys", source: reply.source, text: reply.text });
+        streaming = null;
+        busy = false;
+        CS.save(state);
+        render();
+      });
+    });
+
+    handoff.addEventListener("click", () => {
+      const sess = current();
+      if (sess.handoff === "waiting" || sess.handoff === "in_progress") return;
+      sess.handoff = "waiting";
+      const ticket = {
+        id: "t" + Date.now(),
+        sessionId: sess.id,
+        status: "waiting",
+        preview: sess.title
+      };
+      state.tickets.unshift(ticket);
+      state.activeTicket = ticket.id;
+      CS.save(state);
+      render();
+    });
+
+    setInterval(() => {
+      const fresh = CS.load();
+      const sess = fresh.sessions.find((s) => s.id === state.activeSession);
+      const local = current();
+      if (!sess || busy) return;
+      if (JSON.stringify(sess) !== JSON.stringify(local) || JSON.stringify(fresh.tickets) !== JSON.stringify(state.tickets)) {
+        Object.assign(state, fresh);
+        render();
+      }
+    }, 800);
+
+    render();
+  </script>
+</body>
+</html>

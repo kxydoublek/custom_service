@@ -1,0 +1,121 @@
+{
+  "version": "1.0",
+  "name": "企业内部IT知识问答标签体系",
+  "description": "从问题对象、用户诉求和具体实体三个方面理解问题。对象与诉求标签同时用于知识入库标注和查询识别，不包含长期用户画像或跨会话记忆。",
+  "object_types": [
+    {
+      "code": "hardware",
+      "name": "硬件设备",
+      "definition": "电脑及外接设备的使用、故障、申请与管控。",
+      "examples": ["电脑", "显示器", "键盘", "鼠标", "打印机", "摄像头", "麦克风"]
+    },
+    {
+      "code": "software",
+      "name": "软件与操作系统",
+      "definition": "软件客户端、操作系统及驱动程序的安装、运行、配置和维护。",
+      "examples": ["Outlook客户端", "Office", "Photoshop", "Windows", "驱动程序"]
+    },
+    {
+      "code": "account",
+      "name": "账号与身份认证",
+      "definition": "账号、密码、登录认证、账号锁定与身份验证。",
+      "examples": ["OA账号", "密码", "账号锁定", "MFA", "缓存凭据"]
+    },
+    {
+      "code": "network",
+      "name": "网络与远程接入",
+      "definition": "公司网络、VPN、WiFi、远程连接与网络访问控制。",
+      "examples": ["VPN", "公司WiFi", "远程桌面", "网站白名单"]
+    },
+    {
+      "code": "resource",
+      "name": "业务系统与共享资源",
+      "definition": "业务系统、代码仓库、共享存储及其他企业资源的访问与使用。",
+      "examples": ["CRM", "ERP", "共享邮箱", "GitLab仓库", "共享文件夹", "NAS", "云服务", "数据库"]
+    }
+  ],
+  "request_types": [
+    {
+      "code": "troubleshooting",
+      "name": "故障与异常排查",
+      "definition": "描述无法正常使用的现象，希望获得检查、诊断或恢复方法。",
+      "examples": ["显示器黑屏怎么办", "Outlook打开就崩溃", "VPN提示认证失败"]
+    },
+    {
+      "code": "maintenance",
+      "name": "报修与维护服务",
+      "definition": "明确需要IT介入，了解报修、重装、送修、维护或维修期间的安排。",
+      "examples": ["排查过了还是黑屏，怎么报修", "重装系统前要准备什么", "维修期间能借备用机吗"]
+    },
+    {
+      "code": "resource_request",
+      "name": "资源申请与变更",
+      "definition": "希望获得、安装、更换、归还或扩容设备、软件及其他资源。",
+      "examples": ["申请一个显示器", "需要安装Postman", "NAS空间怎么扩容", "离职怎么归还电脑"]
+    },
+    {
+      "code": "permission_request",
+      "name": "权限开通与调整",
+      "definition": "明确希望开通、增加、变更或取消现有系统、设备、网络或资源的使用权限。",
+      "examples": ["开通仓库写权限", "申请USB临时使用权限", "取消共享文件夹访问权限"]
+    },
+    {
+      "code": "usage_guidance",
+      "name": "操作与配置指导",
+      "definition": "没有明确故障，询问如何使用或配置已有能力。",
+      "examples": ["GitLab怎么添加SSH Key", "Mac怎么连接NAS", "VPN配置文件怎么导入"]
+    },
+    {
+      "code": "policy_process",
+      "name": "制度与流程说明",
+      "definition": "重点询问规定、资格、权限含义、审批责任、标准时效或办理渠道。",
+      "examples": ["电脑用了几年可以换新", "仓库Developer能做什么", "数据库权限由谁审批"]
+    }
+  ],
+  "classification_rules": [
+    "实体记录具体产品、设备或资源名称；对象标签记录所属领域；诉求标签记录用户希望得到的帮助。实体不是预先穷举的标签。",
+    "按完整语义识别，不用产品名直接决定诉求。例如出现VPN不代表需要申请权限。",
+    "不把现象当成原因。访问失败不一定是权限不足，蓝屏不一定是硬件损坏。",
+    "故障排查与维护服务按当前诉求区分；同一个故障可以先排查，再进入报修。",
+    "以具体办理为目标时选择对应申请或维护诉求；以了解规定、职责或标准为目标时选择制度与流程说明。",
+    "同一个问题选择一个主要诉求；多个可独立处理的问题拆成多个issues。",
+    "分类不完全确定但已有足够信息进行有意义的检索时，可以先检索，不为了分类本身反复追问。",
+    "只有缺失信息会改变检索方向或回答内容时才追问，沿用当前会话中已经提供的信息。"
+  ],
+  "query_output": {
+    "message_type": "service_request 或 small_talk",
+    "issues": [
+      {
+        "issue_id": "当前消息内的问题编号",
+        "summary": "用户问题的简短概括",
+        "primary_object_type": "主要对象代码，无法确定时为null",
+        "related_object_types": "相关对象代码数组，没有则为空数组",
+        "request_type": "主要诉求代码，无法确定或不适用时为null",
+        "entities": [
+          {
+            "name": "用户明确提到的实体名称",
+            "type": "product、device或resource"
+          }
+        ],
+        "symptom": "用户描述的异常现象，没有则为null",
+        "error_message": "报错原文，没有则为null",
+        "processing_status": "ready、needs_clarification、requires_live_data或out_of_scope",
+        "retrieval_query": "结合当前会话补全后的独立检索问题；不加入推测事实，无适用知识检索时为null",
+        "missing_information": "影响下一步处理的缺失信息数组",
+        "clarification_question": "当前最必要的追问，无需追问时为null"
+      }
+    ]
+  },
+  "processing_statuses": {
+    "ready": "已有足够信息进行知识检索。",
+    "needs_clarification": "缺少影响检索或回答的关键信息。",
+    "requires_live_data": "需要查询具体工单、申请或权限的实时状态，静态知识不能给出实际结果。",
+    "out_of_scope": "超出当前企业IT知识服务范围。"
+  },
+  "context_policy": {
+    "use_current_conversation": true,
+    "use_cross_conversation_memory": false,
+    "extract_long_term_profile": false,
+    "persist_long_term_profile": false
+  }
+}

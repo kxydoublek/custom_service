@@ -1,0 +1,96 @@
+.page {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.sideHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 16px 8px;
+  flex-shrink: 0;
+}
+
+.sideHead h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+.rowButton {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+}
+
+.rowButton:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.rowButton:active:not(:disabled) {
+  background: #f1f5f9;
+}
+
+.rowButton:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}
+
+.rowButton:disabled {
+  cursor: not-allowed;
+  color: var(--disabled);
+}
+
+.skeleton {
+  height: 48px;
+  margin: 8px 16px;
+  border-radius: 6px;
+  background: #e2e8f0;
+}
+
+.mockMark {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 18px;
+  margin-left: 8px;
+}
+
+.composerActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.newSession {
+  height: 32px;
+  padding: 0 12px;
+}
+
+.newSession:hover:not(:disabled) {
+  background: var(--canvas);
+}
+
+.newSession:active:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.newSession:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.newSession:disabled {
+  background: var(--disabled);
+  color: #fff;
+  border-color: var(--disabled);
+  cursor: not-allowed;
+}
